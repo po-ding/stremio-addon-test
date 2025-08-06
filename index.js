@@ -1,31 +1,39 @@
-// index.js (최종 v8.0: behaviorHints 적용)
+// index.js (최종 안정화 버전 - 페이지 넘김 제거)
 
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
 const axios = require('axios');
 
 const TMDB_API_KEY = '6091e24320473f80ca1d4f402ab3f7d9';
-const PAGE_SIZE = 50;
 
 const manifest = {
-    id: 'community.tmdb.discover.final.hope',
-    version: '8.0.0',
-    name: 'TMDB Discover (Final Hope)',
-    description: 'The final attempt to fix pagination with behaviorHints.',
+    id: 'community.tmdb.discover.stable.final',
+    version: '10.0.0',
+    name: 'TMDB Discover (Stable Filters)',
+    description: 'A stable addon to discover Korean TV shows with filters.',
     resources: ['catalog', 'meta'],
     types: ['series'],
-    idPrefixes: ['tmdb-'],
     catalogs: [
         {
             type: 'series',
             id: 'tmdb-discover-tv-kr',
             name: 'Discover Korean TV Shows',
-            // *** 여기가 마지막 희망입니다! ***
-            // 이 카탈로그가 '피드' 형식임을 Stremio에 명확히 알려줍니다.
-            behaviorHints: {
-                // 이 힌트는 Stremio에게 이 카탈로그가 스크롤 가능한 피드이며,
-                // 다음 페이지를 요청하기 위해 id를 동적으로 사용해야 한다고 알려줍니다.
-                "paged": true
-            }
+            extra: [
+                {
+                    name: 'sort_by', isRequired: false,
+                    options: {
+                        'popularity.desc': '인기 프로그램',
+                        'first_air_date.desc': '첫방송일 (내림차순)',
+                        'vote_average.desc': '평점순'
+                    }
+                },
+                {
+                    name: 'with_genres', isRequired: false,
+                    options: {
+                        '10759': '액션 & 어드벤처', '16': '애니메이션', '35': '코미디', '80': '범죄',
+                        '99': '다큐멘터리', '18': '드라마', '10751': '가족', '9648': '미스터리', '10765': 'SF & 판타지'
+                    }
+                }
+            ]
         }
     ]
 };
@@ -33,34 +41,30 @@ const manifest = {
 const builder = new addonBuilder(manifest);
 
 builder.defineCatalogHandler(async (args) => {
-    const [catalogId, paramsStr] = args.id.split('/');
-    const params = new URLSearchParams(paramsStr);
-    const skip = parseInt(params.get('skip') || '0');
-    const page = Math.floor(skip / PAGE_SIZE) + 1;
+    const sortBy = args.extra.sort_by || 'popularity.desc';
+    const withGenres = args.extra.with_genres || null;
 
-    console.log(`Requesting PAGE ${page} for catalog ${catalogId}`);
+    console.log(`Fetching from TMDB with Sort: ${sortBy}, Genres: ${withGenres}`);
 
     try {
-        const apiUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&language=ko-KR&with_original_language=ko&sort_by=popularity.desc&page=${page}`;
+        // 페이지 넘김 로직을 제거하고, 항상 1페이지만 요청합니다.
+        let apiUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&language=ko-KR&with_original_language=ko&sort_by=${sortBy}&page=1`;
+        if (withGenres) {
+            apiUrl += `&with_genres=${withGenres}`;
+        }
+
         const response = await axios.get(apiUrl);
         const results = response.data.results;
-        console.log(`Found ${results.length} results from TMDB API page ${page}.`);
+        console.log(`Found ${results.length} results from TMDB API.`);
 
-        let metas = results.map(item => ({
+        const metas = results.map(item => ({
             id: `tmdb:${item.id}`,
             type: 'series',
             name: item.name,
-            poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
+            poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null
         }));
-        
-        // "Next Page" 아이템을 추가하는 방식 대신, hasMore를 사용합니다.
-        // paged 힌트와 함께 사용할 때 더 안정적일 수 있습니다.
-        if (metas.length > 0) {
-            return { metas: metas, hasMore: true, skip: skip + PAGE_SIZE };
-        } else {
-            return { metas: [] };
-        }
 
+        return { metas: metas.filter(m => m.poster) };
     } catch (error) {
         console.error('TMDB API Error:', error.message);
         return { metas: [] };
@@ -74,7 +78,14 @@ builder.defineMetaHandler(async ({ id }) => {
         const apiUrl = `https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${TMDB_API_KEY}&language=ko-KR`;
         const response = await axios.get(apiUrl);
         const item = response.data;
-        return { meta: { id: `tmdb:${item.id}`, type: 'series', name: item.name, poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null, background: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : null, description: item.overview } };
+        return {
+            meta: {
+                id: `tmdb:${item.id}`, type: 'series', name: item.name,
+                poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
+                background: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : null,
+                description: item.overview
+            }
+        };
     } catch (error) {
         console.error('TMDB Meta Error:', error.message);
         return { meta: null };
@@ -83,5 +94,4 @@ builder.defineMetaHandler(async ({ id }) => {
 
 const port = process.env.PORT || 7000;
 serveHTTP(builder.getInterface(), { port: port });
-console.log(`TMDB Final Hope Addon running on port ${port}`);
-
+console.log(`TMDB Stable Filter Addon running on port ${port}`);
