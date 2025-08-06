@@ -5,7 +5,7 @@ const TMDB_API_KEY = '6091e24320473f80ca1d4f402ab3f7d9';
 
 const manifest = {
     id: 'community.tmdb.discover.stable.final',
-    version: '10.0.1',  // 버전 업데이트
+    version: '10.0.2',
     name: 'TMDB Discover (Stable Filters)',
     description: 'A stable addon to discover Korean TV shows with filters.',
     resources: ['catalog', 'meta'],
@@ -30,9 +30,6 @@ const manifest = {
                         '10759': '액션 & 어드벤처', '16': '애니메이션', '35': '코미디', '80': '범죄',
                         '99': '다큐멘터리', '18': '드라마', '10751': '가족', '9648': '미스터리', '10765': 'SF & 판타지'
                     }
-                },
-                {
-                    name: 'page', isRequired: false
                 }
             ]
         }
@@ -42,9 +39,12 @@ const manifest = {
 const builder = new addonBuilder(manifest);
 
 builder.defineCatalogHandler(async (args) => {
+    console.log('Catalog handler args:', JSON.stringify(args, null, 2));
+
     const sortBy = args.extra.sort_by || 'popularity.desc';
     const withGenres = args.extra.with_genres || null;
-    const page = args.extra.page || 1;  // 페이지 값 반영
+    // page 값이 문자열로 올 수 있으니 정수로 변환, 없으면 1
+    const page = args.extra.page ? parseInt(args.extra.page) : 1;
 
     console.log(`Fetching from TMDB with Sort: ${sortBy}, Genres: ${withGenres}, Page: ${page}`);
 
