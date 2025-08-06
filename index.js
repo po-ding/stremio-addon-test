@@ -1,5 +1,3 @@
-// index.js (최종 안정화 버전 - 페이지 넘김 제거)
-
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
 const axios = require('axios');
 
@@ -7,7 +5,7 @@ const TMDB_API_KEY = '6091e24320473f80ca1d4f402ab3f7d9';
 
 const manifest = {
     id: 'community.tmdb.discover.stable.final',
-    version: '10.0.0',
+    version: '10.0.1',  // 버전 업데이트
     name: 'TMDB Discover (Stable Filters)',
     description: 'A stable addon to discover Korean TV shows with filters.',
     resources: ['catalog', 'meta'],
@@ -32,6 +30,9 @@ const manifest = {
                         '10759': '액션 & 어드벤처', '16': '애니메이션', '35': '코미디', '80': '범죄',
                         '99': '다큐멘터리', '18': '드라마', '10751': '가족', '9648': '미스터리', '10765': 'SF & 판타지'
                     }
+                },
+                {
+                    name: 'page', isRequired: false
                 }
             ]
         }
@@ -43,12 +44,12 @@ const builder = new addonBuilder(manifest);
 builder.defineCatalogHandler(async (args) => {
     const sortBy = args.extra.sort_by || 'popularity.desc';
     const withGenres = args.extra.with_genres || null;
+    const page = args.extra.page || 1;  // 페이지 값 반영
 
-    console.log(`Fetching from TMDB with Sort: ${sortBy}, Genres: ${withGenres}`);
+    console.log(`Fetching from TMDB with Sort: ${sortBy}, Genres: ${withGenres}, Page: ${page}`);
 
     try {
-        // 페이지 넘김 로직을 제거하고, 항상 1페이지만 요청합니다.
-        let apiUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&language=ko-KR&with_original_language=ko&sort_by=${sortBy}&page=1`;
+        let apiUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&language=ko-KR&with_original_language=ko&sort_by=${sortBy}&page=${page}`;
         if (withGenres) {
             apiUrl += `&with_genres=${withGenres}`;
         }
