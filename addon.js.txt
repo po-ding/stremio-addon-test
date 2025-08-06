@@ -1,0 +1,71 @@
+// addon.js
+
+const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
+
+// 1. Manifest 정의: 애드온의 정보를 담습니다.
+const manifest = {
+    id: 'org.myfirstaddon.helloworld',
+    version: '1.0.0',
+    name: 'Hello World Addon',
+    description: 'My first Stremio addon providing a single movie stream.',
+    // 이 애드온이 제공할 기능들
+    resources: ['catalog', 'stream'],
+    // 이 애드온이 지원하는 콘텐츠 타입과 ID 형식
+    types: ['movie'],
+    // 카탈로그 정보
+    catalogs: [
+        {
+            type: 'movie',
+            id: 'helloworld-catalog',
+            name: 'Hello World Catalog'
+        }
+    ]
+};
+
+// 2. AddonBuilder로 애드온 객체 생성
+const builder = new addonBuilder(manifest);
+
+// 3. 핸들러 정의: 카탈로그 요청 처리
+// Stremio가 'helloworld-catalog' 목록을 요청하면 이 함수가 실행됩니다.
+builder.defineCatalogHandler(async (args) => {
+    console.log('Catalog requested:', args);
+
+    // 보여줄 영화 메타데이터 (예시: Big Buck Bunny)
+    const metas = [
+        {
+            id: 'tt1254207', // IMDB ID
+            type: 'movie',
+            name: 'Big Buck Bunny',
+            poster: 'https://image.tmdb.org/t/p/w500/uVEfJstUagVKB22hGH44jDDP2DU.jpg'
+        }
+    ];
+
+    return { metas: metas };
+});
+
+// 4. 핸들러 정의: 스트림 요청 처리
+// 사용자가 카탈로그에서 영화를 클릭하면 이 함수가 실행됩니다.
+builder.defineStreamHandler(async (args) => {
+    console.log('Stream requested:', args);
+
+    if (args.type === 'movie' && args.id === 'tt1254207') {
+        // 스트리밍 링크 배열 (여러 화질 제공 가능)
+        const streams = [
+            {
+                // 공개적으로 사용 가능한 스트리밍 주소
+                title: 'HD Quality',
+                url: 'http://distribution.bbb3d.renderfarming.net/video/mp4/bbb_sunflower_1080p_30fps_normal.mp4'
+            }
+        ];
+
+        return { streams: streams };
+    } else {
+        // 해당 ID의 스트림이 없으면 빈 배열 반환
+        return { streams: [] };
+    }
+});
+
+// 5. 웹 서버 실행 (포트: 7000)
+serveHTTP(builder.getInterface(), { port: 7000 });
+
+console.log('Addon running on http://127.0.0.1:7000');

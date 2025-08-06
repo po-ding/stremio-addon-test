@@ -1,0 +1,93 @@
+// addon.js (올바른 TMDB 라이브러리 적용 버전)
+
+const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteer.use(StealthPlugin());
+
+// a. 올바른 TMDB 라이브러리를 불러옵니다.
+const TheMovieDb = require('node-themoviedb');
+
+// b. 발급받은 TMDB API 키를 여기에 입력하세요.
+const TMDB_API_KEY = '6091e24320473f80ca1d4f402ab3f7d9'; // <--- ★★★ 중요 ★★★
+const mdb = new TheMovieDb(TMDB_API_KEY);
+
+
+const BASE_URL = 'https://dramago.me';
+
+const manifest = {
+    id: 'community.dramago.tmdb.posters.v2',
+    version: '1.0.1-tmdb',
+    name: 'DramaGo with TMDB Posters v2',
+    description: 'Fetches catalog from DramaGo and posters from TMDB.',
+    resources: ['catalog', 'meta', 'stream'],
+    types: ['series'],
+    catalogs: [{ type: 'series', id: 'dramago-showtimes', name: 'DramaGo Showtimes' }]
+};
+
+const builder = new addonBuilder(manifest);
+
+builder.defineCatalogHandler(async ({ id }) => {
+    console.log('Catalog requested... Fetching titles from DramaGo...');
+    let browser;
+    try {
+        browser = await puppeteer.launch({ headless: true });
+        const page = await browser.newPage();
+        await page.goto(`${BASE_URL}/showtimes`, { timeout: 60000, waitUntil: 'networkidle0' });
+
+        const dramaList = await page.evaluate(() => {
+            const items = Array.from(document.querySelectorAll('.item'));
+            return items.map(item => {
+                const titleElement = item.querySelector('h3.title');
+                const linkElement = item.querySelector('a');
+                if (!titleElement) return null;
+                // (2025) 같은 연도 표시를 정규식으로 제거
+                const cleanName = titleElement.innerText.trim().replace(/\s*\(\d{4}\)$/, '');
+                return {
+                    id: linkElement ? linkElement.getAttribute('href') : null,
+                    name: cleanName
+                };
+            }).filter(d => d && d.id && d.name);
+        });
+
+        console.log(`Found ${dramaList.length} titles from DramaGo. Now fetching posters from TMDB...`);
+
+        // c. 각 드라마의 포스터를 TMDB에서 찾아옵니다.
+        const metas = await Promise.all(
+            dramaList.map(async (drama) => {
+                try {
+                    const args = { query: drama.name, language: 'ko-KR' };
+                    const result = await mdb.search.TV(args);
+                    
+                    if (result.data && result.data.results.length > 0) {
+                        const posterPath = result.data.results[0].poster_path;
+                        drama.poster = posterPath ? `https://image.tmdb.org/t/p/w500${posterPath}` : null;
+                    }
+                } catch (e) {
+                    // TMDB API 에러는 console.error로 표시하여 더 잘 보이게 함
+                    console.error(`Could not fetch poster for "${drama.name}":`, e.message);
+                    drama.poster = null;
+                }
+                
+                drama.type = 'series';
+                return drama;
+            })
+        );
+        
+        const finalMetas = metas.filter(m => m.poster);
+        console.log(`Successfully attached ${finalMetas.length} posters from TMDB.`);
+        return { metas: finalMetas };
+
+    } catch (error) {
+        console.error('Catalog Error:', error);
+        return { metas: [] };
+    } finally {
+        if (browser) await browser.close();
+    }
+});
+
+builder.defineMetaHandler(async args => ({ meta: null }));
+builder.defineStreamHandler(async args => ({ streams: [] }));
+
+serveHTTP(builder.getInterface(), { port: 7000 });
+console.log('Addon running with correct TMDB integration...');
