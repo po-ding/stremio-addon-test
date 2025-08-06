@@ -4,23 +4,23 @@ const axios = require('axios');
 const TMDB_API_KEY = '6091e24320473f80ca1d4f402ab3f7d9';
 
 const manifest = {
-    id: 'community.tmdb.discover.stable.final',
-    version: '10.0.2',
-    name: 'TMDB Discover (Stable Filters)',
-    description: 'A stable addon to discover Korean TV shows with filters.',
+    id: 'community.tmdb.discover.kr.series',
+    version: '1.0.0',
+    name: 'Korean Series Discover (TMDB)',
+    description: 'Discover Korean TV series using genre and sorting filters.',
     resources: ['catalog', 'meta'],
     types: ['series'],
     catalogs: [
         {
             type: 'series',
-            id: 'tmdb-discover-tv-kr',
-            name: 'Discover Korean TV Shows',
+            id: 'tmdb-korean-series',
+            name: 'Korean Series',
             extra: [
                 {
                     name: 'sort_by', isRequired: false,
                     options: {
-                        'popularity.desc': '인기 프로그램',
-                        'first_air_date.desc': '첫방송일 (내림차순)',
+                        'popularity.desc': '인기순',
+                        'first_air_date.desc': '최신순',
                         'vote_average.desc': '평점순'
                     }
                 },
@@ -31,9 +31,8 @@ const manifest = {
                         '99': '다큐멘터리', '18': '드라마', '10751': '가족', '9648': '미스터리', '10765': 'SF & 판타지'
                     }
                 },
-                {
-                    name: 'page', isRequired: false
-                }
+                { name: 'skip', isRequired: false },
+                { name: 'limit', isRequired: false }
             ]
         }
     ]
@@ -42,45 +41,35 @@ const manifest = {
 const builder = new addonBuilder(manifest);
 
 builder.defineCatalogHandler(async (args) => {
-    console.log('Catalog handler args:', JSON.stringify(args, null, 2));
-
     const sortBy = args.extra.sort_by || 'popularity.desc';
     const withGenres = args.extra.with_genres || null;
-    const page = args.extra.page ? parseInt(args.extra.page) : 1;
+    const skip = parseInt(args.extra.skip || '0');
+    const limit = parseInt(args.extra.limit || '20');
 
-    console.log(`Fetching from TMDB with Sort: ${sortBy}, Genres: ${withGenres}, Page: ${page}`);
+    const page = Math.floor(skip / 20) + 1;
+
+    let apiUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&language=ko-KR&with_original_language=ko&sort_by=${sortBy}&page=${page}`;
+    if (withGenres) {
+        apiUrl += `&with_genres=${withGenres}`;
+    }
 
     try {
-        let apiUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&language=ko-KR&with_original_language=ko&sort_by=${sortBy}&page=${page}`;
-        if (withGenres) {
-            apiUrl += `&with_genres=${withGenres}`;
-        }
-
         const response = await axios.get(apiUrl);
-        const results = response.data.results;
-        const totalPages = response.data.total_pages;
+        const results = response.data.results || [];
 
-        console.log(`Found ${results.length} results from TMDB API. Total pages: ${totalPages}`);
+        const start = skip % 20;
+        const sliced = results.slice(start, start + limit);
 
-        const metas = results.map(item => ({
+        const metas = sliced.map(item => ({
             id: `tmdb:${item.id}`,
             type: 'series',
             name: item.name,
             poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null
         }));
 
-        const responseObj = {
-            metas: metas.filter(m => m.poster)
-        };
-
-        // 다음 페이지가 존재하면 next 필드 추가
-        if (page < totalPages) {
-            responseObj.next = `page=${page + 1}`;
-        }
-
-        return responseObj;
-    } catch (error) {
-        console.error('TMDB API Error:', error.message);
+        return { metas };
+    } catch (err) {
+        console.error('Catalog fetch error:', err.message);
         return { metas: [] };
     }
 });
@@ -102,12 +91,12 @@ builder.defineMetaHandler(async ({ id }) => {
                 description: item.overview
             }
         };
-    } catch (error) {
-        console.error('TMDB Meta Error:', error.message);
+    } catch (err) {
+        console.error('Meta fetch error:', err.message);
         return { meta: null };
     }
 });
 
 const port = process.env.PORT || 7000;
-serveHTTP(builder.getInterface(), { port: port });
-console.log(`TMDB Stable Filter Addon running on port ${port}`);
+serveHTTP(builder.getInterface(), { port });
+console.log(`Korean Series Discover Addon running on port ${port}`);
