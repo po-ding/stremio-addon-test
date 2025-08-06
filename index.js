@@ -4,7 +4,7 @@ const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
 const axios = require('axios');
 
 const TMDB_API_KEY = '6091e24320473f80ca1d4f402ab3f7d9';
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 50;
 
 const manifest = {
     id: 'community.tmdb.discover.final.hope',
@@ -84,3 +84,4 @@ builder.defineMetaHandler(async ({ id }) => {
 const port = process.env.PORT || 7000;
 serveHTTP(builder.getInterface(), { port: port });
 console.log(`TMDB Final Hope Addon running on port ${port}`);
+
