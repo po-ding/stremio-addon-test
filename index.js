@@ -30,6 +30,9 @@ const manifest = {
                         '10759': '액션 & 어드벤처', '16': '애니메이션', '35': '코미디', '80': '범죄',
                         '99': '다큐멘터리', '18': '드라마', '10751': '가족', '9648': '미스터리', '10765': 'SF & 판타지'
                     }
+                },
+                {
+                    name: 'page', isRequired: false
                 }
             ]
         }
@@ -43,7 +46,6 @@ builder.defineCatalogHandler(async (args) => {
 
     const sortBy = args.extra.sort_by || 'popularity.desc';
     const withGenres = args.extra.with_genres || null;
-    // page 값이 문자열로 올 수 있으니 정수로 변환, 없으면 1
     const page = args.extra.page ? parseInt(args.extra.page) : 1;
 
     console.log(`Fetching from TMDB with Sort: ${sortBy}, Genres: ${withGenres}, Page: ${page}`);
@@ -81,7 +83,9 @@ builder.defineMetaHandler(async ({ id }) => {
         const item = response.data;
         return {
             meta: {
-                id: `tmdb:${item.id}`, type: 'series', name: item.name,
+                id: `tmdb:${item.id}`,
+                type: 'series',
+                name: item.name,
                 poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
                 background: item.backdrop_path ? `https://image.tmdb.org/t/p/w1280${item.backdrop_path}` : null,
                 description: item.overview
