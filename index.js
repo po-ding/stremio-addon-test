@@ -1,4 +1,4 @@
-// addon.js (최종 v3.1: 'Next Page' 아이템 방식)
+// index.js (Render 포트 문제 해결 최종 버전)
 
 const { addonBuilder, serveHTTP } = require('stremio-addon-sdk');
 const axios = require('axios');
@@ -7,10 +7,10 @@ const TMDB_API_KEY = '6091e24320473f80ca1d4f402ab3f7d9';
 const PAGE_SIZE = 20;
 
 const manifest = {
-    id: 'community.tmdb.discover.feed.final.v2',
-    version: '3.1.0',
-    name: 'TMDB Discover (Next Page Button)',
-    description: 'Provides robust pagination using a virtual "Next Page" item.',
+    id: 'community.tmdb.discover.render.final',
+    version: '5.0.0',
+    name: 'TMDB Discover (Render Hosted)',
+    description: 'A robust addon hosted on Render, with working pagination.',
     resources: ['catalog', 'meta'],
     types: ['series'],
     idPrefixes: ['tmdb-'],
@@ -28,40 +28,29 @@ const builder = new addonBuilder(manifest);
 builder.defineCatalogHandler(async (args) => {
     const [catalogId, paramsStr] = args.id.split('/');
     const params = new URLSearchParams(paramsStr);
-    
     const skip = parseInt(params.get('skip') || '0');
     const page = Math.floor(skip / PAGE_SIZE) + 1;
-
     console.log(`Requesting PAGE ${page} for catalog ${catalogId}`);
-
     try {
         const apiUrl = `https://api.themoviedb.org/3/discover/tv?api_key=${TMDB_API_KEY}&language=ko-KR&with_original_language=ko&sort_by=popularity.desc&page=${page}`;
-        
         const response = await axios.get(apiUrl);
         const results = response.data.results;
-
         console.log(`Found ${results.length} results from TMDB API page ${page}.`);
-
         let metas = results.map(item => ({
             id: `tmdb:${item.id}`,
             type: 'series',
             name: item.name,
             poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
         }));
-        
-        // *** 여기가 핵심! ***
-        // 결과가 있다면, 목록의 맨 끝에 "다음 페이지" 역할을 할 가상 아이템을 추가합니다.
         if (metas.length > 0) {
             metas.push({
-                id: `${catalogId}/skip=${skip + PAGE_SIZE}`, // 다음 페이지의 id
+                id: `${catalogId}/skip=${skip + PAGE_SIZE}`,
                 type: 'series',
                 name: `Next Page (Page ${page + 1})`,
-                poster: 'https://cdn.strem.io/images/plus-6.png' // '더보기' 아이콘
+                poster: 'https://cdn.strem.io/images/plus-6.png'
             });
         }
-        
         return { metas: metas };
-
     } catch (error) {
         console.error('TMDB API Error:', error.response ? `${error.response.status}` : error.message);
         return { metas: [] };
@@ -89,6 +78,9 @@ builder.defineMetaHandler(async ({ id }) => {
     }
 });
 
+// Render가 제공하는 포트(process.env.PORT)를 사용하고, 만약 없다면 기본으로 7000번을 사용합니다.
+const port = process.env.PORT || 7000;
 
-serveHTTP(builder.getInterface(), { port: 7000 });
-console.log('TMDB "Next Page" Addon running...');
+serveHTTP(builder.getInterface(), { port: port });
+
+console.log(`TMDB Addon (Render Ready) running on port ${port}`);
