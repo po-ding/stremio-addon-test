@@ -58,7 +58,9 @@ builder.defineCatalogHandler(async (args) => {
 
         const response = await axios.get(apiUrl);
         const results = response.data.results;
-        console.log(`Found ${results.length} results from TMDB API.`);
+        const totalPages = response.data.total_pages;
+
+        console.log(`Found ${results.length} results from TMDB API. Total pages: ${totalPages}`);
 
         const metas = results.map(item => ({
             id: `tmdb:${item.id}`,
@@ -67,7 +69,16 @@ builder.defineCatalogHandler(async (args) => {
             poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null
         }));
 
-        return { metas: metas.filter(m => m.poster) };
+        const responseObj = {
+            metas: metas.filter(m => m.poster)
+        };
+
+        // 다음 페이지가 존재하면 next 필드 추가
+        if (page < totalPages) {
+            responseObj.next = `page=${page + 1}`;
+        }
+
+        return responseObj;
     } catch (error) {
         console.error('TMDB API Error:', error.message);
         return { metas: [] };
